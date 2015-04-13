@@ -233,14 +233,8 @@ pagelet.go = function(url, pagelets, pageletOptions){
 			pageletOptions : pageletOptions
         };
         global.history.replaceState(state, title, url);
-        // Clear out any focused controls before inserting new page contents.
-    	try { document.activeElement.blur() } catch (e) { }
-
-    	if(err){
-    		throw new Error(err);
-    	}else{
-    		_processHtml(data.html)
-    	}
+        
+        _processHtml(err, data.html, done)
 	})
 	
 	//在发起异步请求开始时就先改变url，pagelet load完成之后再改变_state值
@@ -315,14 +309,25 @@ function _pageletLoaded(result, callback){
 }
 
 //默认的pagelet dom替换操作
-function _processHtml(htmlObj){
-	for(var pageletId in htmlObj){
-		if(htmlObj.hasOwnProperty(pageletId)){
-			var objTemp = document.createElement("div");
-			objTemp.innerHTML = htmlObj[pageletId];
-			var dom = document.getElementById(pageletId);
-			dom.innerHTML = objTemp.childNodes[0].innerHTML
+function _processHtml(err, htmlObj, done){
+
+	// Clear out any focused controls before inserting new page contents.
+	try { document.activeElement.blur() } catch (e) { }
+
+	if(err){
+		throw new Error(err);
+	}else{
+		for(var pageletId in htmlObj){
+			if(htmlObj.hasOwnProperty(pageletId)){
+				var objTemp = document.createElement("div");
+				objTemp.innerHTML = htmlObj[pageletId];
+				var dom = document.getElementById(pageletId);
+				dom.innerHTML = objTemp.childNodes[0].innerHTML
+			}
 		}
+
+		//eval script  TODO：pagelet加参数控制是否执行
+		done();
 	}
 }
 
@@ -444,4 +449,20 @@ document.documentElement.addEventListener( 'click', function(e)
 		target = target.parentNode
 	}
 })
+
+global.addEventListener('popstate', function(e) {
+	var state = e.state;
+
+	console.log(state)
+	return
+
+	/*if (!state) {
+	    location.href = state.url;
+	    return 
+	}*/
+
+	pagelet.load(state.url, state.pagelets, state.pageletOptions, function(err, data, done){
+		_processHtml(err, data.html, done)
+	})
+}, false);
 })(window);
