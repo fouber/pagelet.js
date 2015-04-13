@@ -9,6 +9,8 @@ var comboPattern = DEFAULT_COMBO_PATTERN;
 var supportPushState = global.history && global.history.pushState && global.history.replaceState && !navigator.userAgent.match(/((iPod|iPhone|iPad).+\bOS\s+[1-4]\D|WebApps\/.+CFNetwork)/);
 var _state
 
+pageletRouter(pagelet)
+
 pagelet.init = function(cb, cbp, used){
 	combo = !!cb;
 	comboPattern = cbp || DEFAULT_COMBO_PATTERN;
@@ -44,28 +46,44 @@ pagelet.go = function(url, pagelets, pageletOptions){
 		pagelet.initState()
 	}
 
-	pagelet.load(url, pagelets, pageletOptions, function(err, data, done){
+	//阻止原有的load事件
+	if(pagelet.emit('beforeload', url, pagelets)!="block"){
+		pagelet.load(url, pagelets, pageletOptions, function(err, data, done){
 
-		//加载成功之后用带 完整state的url去replace
-		var title = data.title || document.title;
-        var state = {
+			//加载成功之后用带 完整state的url去replace
+			var title = data.title || document.title;
+	        var state = {
+				url: url,
+				title: title,
+				pagelets : pagelets,
+				pageletOptions : pageletOptions
+	        };
+	        global.history.replaceState(state, title, url);
+	        
+	        _processHtml(err, data.html, url, pagelets, done)
+		})
+		
+		//在发起异步请求开始时就先改变url，pagelet load完成之后再改变_state值
+		var xhr = loader.xhr()
+		if (xhr.readyState > 0) {
+			if(stateReplace){
+				global.history.replaceState(null, "", url);
+			}else{
+				global.history.pushState(null, "", url);
+			}
+		}
+	}
+	else{
+		//TODO
+		var state = {
 			url: url,
-			title: title,
 			pagelets : pagelets,
 			pageletOptions : pageletOptions
         };
-        global.history.replaceState(state, title, url);
-        
-        _processHtml(err, data.html, done)
-	})
-	
-	//在发起异步请求开始时就先改变url，pagelet load完成之后再改变_state值
-	var xhr = loader.xhr()
-	if (xhr.readyState > 0) {
 		if(stateReplace){
-			global.history.replaceState(null, "", url);
+			global.history.replaceState(state, "", url);
 		}else{
-			global.history.pushState(null, "", url);
+			global.history.pushState(state, "", url);
 		}
 	}
 }
@@ -131,7 +149,7 @@ function _pageletLoaded(result, callback){
 }
 
 //默认的pagelet dom替换操作
-function _processHtml(err, htmlObj, done){
+function _processHtml(err, htmlObj, url, pagelets, done){
 
 	// Clear out any focused controls before inserting new page contents.
 	try { document.activeElement.blur() } catch (e) { }
@@ -139,17 +157,19 @@ function _processHtml(err, htmlObj, done){
 	if(err){
 		throw new Error(err);
 	}else{
-		for(var pageletId in htmlObj){
-			if(htmlObj.hasOwnProperty(pageletId)){
-				var objTemp = document.createElement("div");
-				objTemp.innerHTML = htmlObj[pageletId];
-				var dom = document.getElementById(pageletId);
-				dom.innerHTML = objTemp.childNodes[0].innerHTML
+		if(pagelet.emit('beforeDomReplace', url, pagelets, htmlObj, done)!="block"){
+			for(var pageletId in htmlObj){
+				if(htmlObj.hasOwnProperty(pageletId)){
+					var objTemp = document.createElement("div");
+					objTemp.innerHTML = htmlObj[pageletId];
+					var dom = document.getElementById(pageletId);
+					dom.innerHTML = objTemp.childNodes[0].innerHTML
+				}
 			}
-		}
 
-		//eval script  TODO：pagelet加参数控制是否执行
-		done();
+			//eval script  TODO：pagelet加参数控制是否执行
+			done();
+		}
 	}
 }
 
@@ -274,16 +294,16 @@ document.documentElement.addEventListener( 'click', function(e)
 
 global.addEventListener('popstate', function(e) {
 	var state = e.state;
-
-	console.log(state)
-	return
-
-	/*if (!state) {
+	if (!state) {
 	    location.href = state.url;
 	    return 
-	}*/
-
-	pagelet.load(state.url, state.pagelets, state.pageletOptions, function(err, data, done){
-		_processHtml(err, data.html, done)
-	})
+	}
+	var url = state.url
+	var pagelets = state.pagelets
+	if(pagelet.emit('beforeload', url, pagelets)!="block"){
+		pagelet.load(url, pagelets, state.pageletOptions, function(err, data, done){
+			_processHtml(err, data.html, state.url, state.pagelets, done)
+		})
+	}
+	
 }, false);

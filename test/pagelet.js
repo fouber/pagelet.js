@@ -135,46 +135,92 @@ loader.request = function (quickling, options, callback, progress) {
 /**
  *  Attach message function to pagelet instance
  */
+var TYPE_ENUM = ['beforeload','beforeDomReplace']
 
-function messagify (raw) {
-    /**
-     *  Messages
-     */
+function pageletRouter (raw) {
     var callbacks = {};
-    raw.emit = function (type) {
-        var handlers = callbacks[type];
-        var args = [].slice.call(arguments);
-        args.shift();
-        if (handlers) {
-            handlers.forEach(function (fn) {
-                fn.apply(raw, args);
-            })
+
+    for (var i = 0; i < TYPE_ENUM.length; i++) {
+    	callbacks[TYPE_ENUM[i]] = {}
+    };
+
+    raw.emit = function (type, urlPath) {
+        var typeRouteMap = callbacks[type]
+        
+        for(var j in typeRouteMap){
+        	var route_reg_str = typeRouteMap[j].routeData.route_reg
+        	var route_re = new RegExp(route_reg_str)
+			var match_ret = urlPath.match(route_re)
+
+			if(match_ret != null)
+			{
+				var callFn = typeRouteMap[j].fn
+				var paramsCount =  typeRouteMap[j].routeData.params_count
+				var routeParams = []
+				for(var i =1 ; i <= paramsCount ; i++){
+					if(match_ret[i]) routeParams.push(match_ret[i])
+				}
+
+				var args = [].slice.call(arguments);
+				args.shift();
+				args.push(routeParams)
+
+				return callFn.apply(raw, args);
+			}
+        }
+        return false
+    }
+    raw.on = function (type, route, fn) {
+        var handlers = callbacks[type][route];
+        if(!handlers){
+        	handlers = callbacks[type][route] = {}
+        	handlers.fn = fn
+        	handlers.routeData = __replace_route_to_route_reg(route)
         }
     }
-    raw.on = function (type, fn) {
-        var handlers = callbacks[type];
+}
 
-        !handlers && (handlers = callbacks[type] = []);
-        (!~handlers.indexOf(fn)) && handlers.push(fn);
+function __replace_route_to_route_reg(route)
+{
+	var omission_param_re =	/\(.+\)/g		//省略参数
+	var param_re = /:\w+\/?/g		//必传参数
 
-    }
-    raw.off = function (type, fn) {
-        if (arguments.length >= 2) {
-            callbacks[type] = null;
-        } else {
-            var handlers = callbacks[type];
-            if (!handlers) return;
+	var params_count = route.split(':').length - 1		//参数个数
+	
+	var reg_str = route.replace(param_re, function($0)
+	{
+		var replace_role_str = '{[^\/]+}'
 
-            var nexts = []
-            var matched
-            callbacks[type] = handlers.forEach(function (h) {
-                if (h === fn) matched = true
-                else nexts.push(h)
-            });
-            matched && (callbacks[type] = nexts)
-        }
-        return this
-    }
+		var have_spilt = $0.indexOf('/') != -1
+
+		if(have_spilt) replace_role_str += '/'
+		
+		return replace_role_str
+	})    
+	
+	reg_str = reg_str.replace(omission_param_re, function($1)
+	{
+		var replace_role_str = $1.replace('(','(?:').replace(')','|)')
+
+		return replace_role_str
+	})
+
+	var reg_str = reg_str.replace("*",".*")			//匹配全路路由
+
+	//花括号替换回()
+	var re = /{/g
+	reg_str = reg_str.replace(re,'(')
+	var re = /}/g
+	reg_str = reg_str.replace(re,')')
+	
+	//转义字符构造
+	var re = /\//g
+	reg_str = reg_str.replace(re,'\\/')
+	
+	//最后加上结束符
+	reg_str += "$"
+	
+	return { route_reg : reg_str , route : route , params_count : params_count }
 }
 /**
  *  Pagelet main module
@@ -186,6 +232,8 @@ var combo = false;
 var comboPattern = DEFAULT_COMBO_PATTERN;
 var supportPushState = global.history && global.history.pushState && global.history.replaceState && !navigator.userAgent.match(/((iPod|iPhone|iPad).+\bOS\s+[1-4]\D|WebApps\/.+CFNetwork)/);
 var _state
+
+pageletRouter(pagelet)
 
 pagelet.init = function(cb, cbp, used){
 	combo = !!cb;
@@ -222,28 +270,44 @@ pagelet.go = function(url, pagelets, pageletOptions){
 		pagelet.initState()
 	}
 
-	pagelet.load(url, pagelets, pageletOptions, function(err, data, done){
+	//阻止原有的load事件
+	if(pagelet.emit('beforeload', url, pagelets)!="block"){
+		pagelet.load(url, pagelets, pageletOptions, function(err, data, done){
 
-		//加载成功之后用带 完整state的url去replace
-		var title = data.title || document.title;
-        var state = {
+			//加载成功之后用带 完整state的url去replace
+			var title = data.title || document.title;
+	        var state = {
+				url: url,
+				title: title,
+				pagelets : pagelets,
+				pageletOptions : pageletOptions
+	        };
+	        global.history.replaceState(state, title, url);
+	        
+	        _processHtml(err, data.html, url, pagelets, done)
+		})
+		
+		//在发起异步请求开始时就先改变url，pagelet load完成之后再改变_state值
+		var xhr = loader.xhr()
+		if (xhr.readyState > 0) {
+			if(stateReplace){
+				global.history.replaceState(null, "", url);
+			}else{
+				global.history.pushState(null, "", url);
+			}
+		}
+	}
+	else{
+		//TODO
+		var state = {
 			url: url,
-			title: title,
 			pagelets : pagelets,
 			pageletOptions : pageletOptions
         };
-        global.history.replaceState(state, title, url);
-        
-        _processHtml(err, data.html, done)
-	})
-	
-	//在发起异步请求开始时就先改变url，pagelet load完成之后再改变_state值
-	var xhr = loader.xhr()
-	if (xhr.readyState > 0) {
 		if(stateReplace){
-			global.history.replaceState(null, "", url);
+			global.history.replaceState(state, "", url);
 		}else{
-			global.history.pushState(null, "", url);
+			global.history.pushState(state, "", url);
 		}
 	}
 }
@@ -309,7 +373,7 @@ function _pageletLoaded(result, callback){
 }
 
 //默认的pagelet dom替换操作
-function _processHtml(err, htmlObj, done){
+function _processHtml(err, htmlObj, url, pagelets, done){
 
 	// Clear out any focused controls before inserting new page contents.
 	try { document.activeElement.blur() } catch (e) { }
@@ -317,17 +381,19 @@ function _processHtml(err, htmlObj, done){
 	if(err){
 		throw new Error(err);
 	}else{
-		for(var pageletId in htmlObj){
-			if(htmlObj.hasOwnProperty(pageletId)){
-				var objTemp = document.createElement("div");
-				objTemp.innerHTML = htmlObj[pageletId];
-				var dom = document.getElementById(pageletId);
-				dom.innerHTML = objTemp.childNodes[0].innerHTML
+		if(pagelet.emit('beforeDomReplace', url, pagelets, htmlObj, done)!="block"){
+			for(var pageletId in htmlObj){
+				if(htmlObj.hasOwnProperty(pageletId)){
+					var objTemp = document.createElement("div");
+					objTemp.innerHTML = htmlObj[pageletId];
+					var dom = document.getElementById(pageletId);
+					dom.innerHTML = objTemp.childNodes[0].innerHTML
+				}
 			}
-		}
 
-		//eval script  TODO：pagelet加参数控制是否执行
-		done();
+			//eval script  TODO：pagelet加参数控制是否执行
+			done();
+		}
 	}
 }
 
@@ -452,17 +518,17 @@ document.documentElement.addEventListener( 'click', function(e)
 
 global.addEventListener('popstate', function(e) {
 	var state = e.state;
-
-	console.log(state)
-	return
-
-	/*if (!state) {
+	if (!state) {
 	    location.href = state.url;
 	    return 
-	}*/
-
-	pagelet.load(state.url, state.pagelets, state.pageletOptions, function(err, data, done){
-		_processHtml(err, data.html, done)
-	})
+	}
+	var url = state.url
+	var pagelets = state.pagelets
+	if(pagelet.emit('beforeload', url, pagelets)!="block"){
+		pagelet.load(url, pagelets, state.pageletOptions, function(err, data, done){
+			_processHtml(err, data.html, state.url, state.pagelets, done)
+		})
+	}
+	
 }, false);
 })(window);

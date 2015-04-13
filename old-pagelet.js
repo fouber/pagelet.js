@@ -17,7 +17,7 @@ var pagelet = global.pagelet = {};
 /**
  *  Attature message function to pagelet instance
  */
-//messagify(pagelet);
+messagify(pagelet);
 
 pagelet.init = function(cb, cbp, used) {
     combo = !!cb;
