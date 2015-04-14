@@ -80,7 +80,7 @@ pagelet.go = function(url, pagelets, pageletOptions){
 		}
 	}
 	else{
-		//TODO
+		//TODO 取消掉默认的load事件后，title没法变化
 		var state = {
 			url: url,
 			pagelets : pagelets,
@@ -107,7 +107,6 @@ pagelet.load = function(url, pagelets, pageletOptions, callback){
 		if(lruOn && !nocache){
 			var pageletCache = lru.get(url + "-" + pagelets)
 			if(pageletCache){
-				console.log("cache hit!!")
 				_pageletLoaded(pageletCache, callback)
 				return
 			}
@@ -122,6 +121,7 @@ pagelet.load = function(url, pagelets, pageletOptions, callback){
 		}
 
 		loader.request(quickling, {
+			pagelets : pagelets,
             before: function (xhr) {
                 //pagelet.emit('beforeload', pagelets, xhr)
             }
@@ -134,6 +134,8 @@ pagelet.load = function(url, pagelets, pageletOptions, callback){
         	_pageletLoaded(result, callback)
         })
 	}
+	//TODO 没有pagelet的情况会刷新页面
+	//情景：后端渲染打开第一个页面，pushstate到第二个页面，再用浏览器返回按钮的时候会刷新，体验不好
 	else {
 		location.href = url;
 	}
@@ -160,7 +162,7 @@ function _pageletLoaded(result, callback){
 		var len = res.length;
 		res.forEach(function(r)
 		{
-			_loadResource(r.uri, r.type, function(err)
+			loader(r.uri, r.type, function(err)
 			{
 				len--;
 				if(len === 0){
@@ -232,61 +234,6 @@ function _addResource(result, collect, type){
 	}
 }
 
-//加载静态资源
-function _loadResource(url, type, callback){
-	var isScript = type === 'js';
-	var isCss = type === 'css';
-	var node = document.createElement(isScript ? 'script' : 'link');
-	var supportOnload = 'onload' in node;
-	var tid = setTimeout(function(){
-		clearTimeout(tid);
-		clearInterval(intId);
-		callback('timeout');
-	}, TIMEOUT);
-	var intId;
-	if(isScript){
-		node.type = 'text/javascript';
-		node.async = 'async';
-		node.src = url;
-	} else {
-		if(isCss){
-			node.type = 'text/css';
-			node.rel = 'stylesheet';
-		}
-		node.href = url;
-	}
-	node.onload = node.onreadystatechange = function(){
-		if(node && (!node.readyState || /loaded|complete/.test(node.readyState)))
-		{
-			clearTimeout(tid);
-			node.onload = node.onreadystatechange = noop;
-			if(isScript && head && node.parentNode) head.removeChild(node);
-			callback();
-			node = null;
-		}
-	};
-	node.onerror = function(e){
-		clearTimeout(tid);
-		clearInterval(intId);
-		e = (e||{}).error || new Error('load resource timeout');
-		e.message = 'Error loading [' + url + ']: ' + e.message;
-		callback(e);
-	};
-	head.appendChild(node);
-	if(isCss){
-		if(isOldWebKit || !supportOnload)
-		{
-			intId = setInterval(function()
-			{
-				if(node && node.sheet){
-					clearTimeout(tid);
-					clearInterval(intId);
-					callback();
-				}
-			}, 20);
-		}
-	}
-}
 
 //autoload
 document.documentElement.addEventListener( 'click', function(e) 
