@@ -13,9 +13,9 @@ var DEFAULT_COMBO_PATTERN = '/co??%s';
  */
 function noop() {}
 function _exec(code) {
-    var node = $docm.createElement('script');
-    _appendChild(node, $docm.createTextNode(code));
-    _appendChild($head, node);
+    var node = document.createElement('script');
+    _appendChild(node, document.createTextNode(code));
+    _appendChild(document.head, node);
 }
 function _filter(item) {
     return !!item;
@@ -155,7 +155,6 @@ function pageletRouter (raw) {
         	var route_reg_str = typeRouteMap[j].routeData.route_reg
         	var route_re = new RegExp(route_reg_str)
 			var match_ret = urlPath.match(route_re)
-
 			if(match_ret != null)
 			{
 				var callFn = typeRouteMap[j].fn
@@ -223,7 +222,6 @@ function __replace_route_to_route_reg(route)
 	
 	//最后加上结束符
 	reg_str += "$"
-	
 	return { route_reg : reg_str , route : route , params_count : params_count }
 }
 var LRU_MAP = []
@@ -256,9 +254,15 @@ var combo = false;
 var lruOn = true;
 var comboPattern = DEFAULT_COMBO_PATTERN;
 var supportPushState = global.history && global.history.pushState && global.history.replaceState && !navigator.userAgent.match(/((iPod|iPhone|iPad).+\bOS\s+[1-4]\D|WebApps\/.+CFNetwork)/);
-var _state, _pageletQueryObj = {}
+var _autoload = true, _state, _pageletQueryObj = {}
 
+//路由派发
 pageletRouter(pagelet)
+
+//停止autoload
+pagelet.stop = function(){
+	_autoload = false
+}
 
 pagelet.init = function(cb, cbp, used){
 	combo = !!cb;
@@ -302,24 +306,36 @@ pagelet.go = function(url, pagelets, pageletOptions){
 
 	//阻止原有的load事件
 	if(pagelet.emit('beforeload', url, pagelets)!="block"){
-		pagelet.load(url, pagelets, pageletOptions, function(err, data, done){
+		pagelet.load(url, pagelets, pageletOptions, function(err, data, done, customData){
 
-			//加载成功之后用带 完整state的url去replace
-			var title = data.title || document.title;
-	        var state = {
-				url: url,
-				title: title,
-				pagelets : pagelets,
-				pageletOptions : pageletOptions
-	        };
-	        global.history.replaceState(state, title, url);
-	        
-	        _processHtml(err, data.html, url, done)
+			if(err){
+				throw new Error(err);
+			}
+			else{
+				//加载成功之后用带 完整state的url去replace
+				var title = data.title || document.title;
+		        var state = {
+					url: url,
+					title: title,
+					pagelets : pagelets,
+					pageletOptions : pageletOptions
+		        };
+
+		        //直接通过缓存拿到的，不需要ajax请求，下面的那段pusthstate url先变的处理逻辑不会生效
+		        if(customData && customData.fromCache){
+		        	global.history.pushState(state, title, url);
+		        }else{
+		        	global.history.replaceState(state, title, url);
+		        }
+		        
+		        _processHtml(err, data.html, url, done)
+			}
 		})
 		
 		//在发起异步请求开始时就先改变url，pagelet load完成之后再改变_state值
 		var xhr = loader.xhr()
-		if (xhr.readyState > 0) {
+		//还要!=4，因为会拿到上一次已经完毕的xhr
+		if (xhr.readyState > 0 && xhr.readyState!=4) {
 			if(stateReplace){
 				global.history.replaceState(null, "", url);
 			}else{
@@ -355,11 +371,11 @@ pagelet.load = function(url, pagelets, pageletOptions, callback){
 		if(lruOn && !nocache){
 			var pageletCache = lru.get(url + "-" + pagelets)
 			if(pageletCache){
-				_pageletLoaded(pageletCache, callback)
+				_pageletLoaded(pageletCache, callback, true)
 				return
 			}
 		}
-		
+
 		var quickling = url + (url.indexOf('?') === -1 ? '?' : '&') + 'pagelets=' + encodeURIComponent(pagelets);
 
 		for (var key in _pageletQueryObj) {
@@ -379,7 +395,7 @@ pagelet.load = function(url, pagelets, pageletOptions, callback){
         	//设置lru cahce
         	lruOn && lru.set(url + "-" + pagelets, result)
 
-        	_pageletLoaded(result, callback)
+        	_pageletLoaded(result, callback, false)
         })
 	}
 	//TODO 没有pagelet的情况会刷新页面
@@ -390,7 +406,7 @@ pagelet.load = function(url, pagelets, pageletOptions, callback){
 }
 
 //pagelet加载完成
-function _pageletLoaded(result, callback){
+function _pageletLoaded(result, callback, fromCache){
 
 	document.title = result.title || document.title;
 	var res = [],error = null;
@@ -421,7 +437,7 @@ function _pageletLoaded(result, callback){
 		});
 	} 
 	else {
-		callback(error, result, done);
+		callback(error, result, done, {fromCache : fromCache});
 	}
 }
 
@@ -486,8 +502,10 @@ function _addResource(result, collect, type){
 //autoload
 document.documentElement.addEventListener( 'click', function(e) 
 {
+	if(!_autoload) return
+		
 	var target = e.target;
-	while(target && target.tagName.toLowerCase()!="body")
+	while(target && target.tagName && target.tagName.toLowerCase()!="body")
 	{
 		if( target.tagName.toLowerCase() === 'a' ) {
 			var href = target.getAttribute('href')

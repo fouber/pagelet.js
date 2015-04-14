@@ -8,25 +8,16 @@
     <script src="pagelet.js"></script>
     
     <nav class="nav">
-	  <a href="/a" data-pagelets="pagelet_a,pagelet_b" data-pagelets-stateReplace=true>/a pagelet_a,b</a>
-
-      <a href="/c/998" data-pagelets="pagelet_a" data-pagelets-nocache=true>/c pagelet_a</a>
+	  <a href="/red" data-pagelets="pagelet_a" data-pagelets-nocache=true>红色(不用lru-cahce)</a>
+	  <a href="/blue" data-pagelets="pagelet_b" data-pagelets-stateReplace=true>蓝色(replaceState)</a>
+	  <a href="/black" data-pagelets="pagelet_a" >黑色(单个pagelet)</a>
 	
 	  <div id="pagelet_a" style="margin-top:20px;">初始的pagelet_a</div>
-	  <div id="pagelet_b">初始的pagelet_b</div>
+	  <div id="pagelet_b" style="margin-top:10px">初始的pagelet_b</div>
 	</nav>
 
 	<script>
-		pagelet.addQuery({
-			uc_params_str : "dnpfnw"
-		})
 
-		/*pagelet.on('beforeload', '/c/:id' ,function (url, pagelets, routeParams) {
-            console.log('-----beforeload', url, pagelets, routeParams)
-
-            //return "block"
-        })*/
-        
     </script>
 </body>
 </html>

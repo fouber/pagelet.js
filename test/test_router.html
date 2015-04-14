@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>new pagelet.js -- testing</title>
+</head>
+<body>
+    <script src="pagelet.js"></script>
+    
+    <nav class="nav">
+	  <a href="/test/999" data-pagelets="pagelet_a,pagelet_b" >/test/999</a>
+	  <a href="/test/999/xxxxx" data-pagelets="pagelet_a,pagelet_b" >/test/999/xxxxx</a>
+      <a href="/test/999/yyyy?aaaa=bbbbb" data-pagelets="pagelet_a,pagelet_b" >/test/999/yyyy?aaaa=bbbbb</a>
+
+        <a href="/all/999" data-pagelets="pagelet_a,pagelet_b" >/all/999</a>
+        <a href="/all/iii/aaa/ccc" data-pagelets="pagelet_a,pagelet_b" >/all/iii/aaa/ccc</a>
+
+        <a href="/sub/str/4444\4\\444;4?444" data-pagelets="pagelet_a" >/sub/str/4444\4\\444;4?444</a>
+	</nav>
+
+	<script>
+        //必传参数和省略参数
+        pagelet.on('beforeload', '/test/:id(/:param)' ,function (url, pagelets, routeParams) {
+
+            console.log(url, pagelets, routeParams)
+
+            return "block"
+        })
+
+        pagelet.on('beforeload', '/all/*' ,function (url, pagelets, routeParams) {
+
+            console.log(url, pagelets, routeParams)
+
+            return "block"
+        })
+
+        pagelet.on('beforeload', '/sub/str/*' ,function (url, pagelets, routeParams) {
+
+            console.log(url, pagelets, routeParams)
+
+            return "block"
+        })
+		
+    </script>
+</body>
+</html>

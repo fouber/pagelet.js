@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>new pagelet.js -- testing</title>
+</head>
+<body>
+    <script src="pagelet.js"></script>
+    
+    <nav class="nav">
+	  <a href="/red" data-pagelets="pagelet_a,pagelet_b" >红色</a>
+	  <a href="/green" data-pagelets="pagelet_a,pagelet_b" >绿色(阻止load)</a>
+	  <a href="/yellow" data-pagelets="pagelet_a,pagelet_b" >黄色(阻止dom replace)</a>
+	
+	  <div id="pagelet_a" style="margin-top:20px;">初始的pagelet_a</div>
+	  <div id="pagelet_b" style="margin-top:10px">初始的pagelet_b</div>
+	</nav>
+
+	<script>
+        pagelet.on('beforeload', '/green' ,function (url, pagelets, routeParams) {
+
+            document.getElementById('pagelet_a').innerHTML = '我阻止了 /green?pagelets=pagelet_a,pagelet_b的请求;同时也不会有 domReplace了'
+
+            return "block"
+        })
+
+        pagelet.on('beforeDomReplace', '/yellow' ,function (url, htmlObj, done,  routeParams) {
+
+            for (var pageletId in htmlObj) {
+
+                var objTemp = document.createElement("div");
+                objTemp.innerHTML = htmlObj[pageletId];
+                document.getElementById(pageletId).appendChild(objTemp.childNodes[0])
+            };
+            //document.getElementById('pagelet_a').innerHTML
+
+            return "block"
+        })
+
+        pagelet.on('beforeload', '*' ,function (url, pagelets, routeParams) {
+            console.log("测试所有页面的路由命中")
+
+            //注意这个阻止的return
+            //return "block"
+        })
+		
+    </script>
+</body>
+</html>

@@ -24,39 +24,63 @@ app.get('/index', function (req, res, next) {
 })
 
 
-app.get('/a', function (req, res, next) {
+app.get('/red', function (req, res, next) {
     res.send({
-        title: 'a',
+        title: 'red',
         html: {
-            pagelet_a: '<div id="pagelet_a">我是/a `pagelet_a` 的区域</div>',
-            pagelet_b: '<div id="pagelet_b">我是/a `pagelet_b` 的区域</div>'
+            pagelet_a: '<div id="pagelet_a"><div style="width:200px;height:200px;background:red"></div></div>',
+            pagelet_b: '<div id="pagelet_b"><div style="width:100px;height:100px;background:red"></div></div>'
         },
         js: [],
         css: []
     })
 })
-app.get('/b', function (req, res, next) {
+app.get('/blue', function (req, res, next) {
     res.send({
-        title: 'b',
+        title: 'blue',
         html: {
-            pagelet_a: '<div id="pagelet_a">我是/b `pagelet_a` 的区域</div>',
-            pagelet_b: '<div id="pagelet_b">我是/b `pagelet_b` 的区域</div>'
+            pagelet_a: '<div id="pagelet_a"><div style="width:100px;height:100px;background:blue"></div></div>',
+            pagelet_b: '<div id="pagelet_b"><div style="width:50px;height:50px;background:blue"></div></div>'
         },
         js: [],
         css: []
     })
 })
-app.get('/c/:id', function (req, res, next) {
+app.get('/yellow', function (req, res, next) {
     res.send({
-        title: 'c',
+        title: 'yellow',
         html: {
-            pagelet_a: '<div id="pagelet_a">我是/c `pagelet_a` 的区域</div>',
-            pagelet_b: '<div id="pagelet_b">我是/c `pagelet_b` 的区域</div>'
+            pagelet_a: '<div id="pagelet_a"><div style="width:100px;height:200px;background:yellow"></div></div>',
+            pagelet_b: '<div id="pagelet_b"><div style="width:200px;height:100px;background:yellow"></div></div>'
         },
         js: [],
         css: []
     })
 })
+app.get('/black', function (req, res, next) {
+    res.send({
+        title: 'black',
+        html: {
+            pagelet_a: '<div id="pagelet_a"><div style="width:300px;height:300px;background:black"></div></div>'
+        },
+        js: [],
+        css: []
+    })
+})
+app.get('/script', function (req, res, next) {
+    res.send({
+        title: 'script',
+        html: {
+           pagelet_a: '<div id="pagelet_a">请看console</div>'
+        },
+        js: ['js/index.js'],
+        css: ['css/index.css'],
+        script : ['console.log("script eval")']
+    })
+})
+
+
+
 
 /**
  *  server and port
