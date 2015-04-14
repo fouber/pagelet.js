@@ -10,6 +10,7 @@
     <nav class="nav">
 	  <a href="/a" data-pagelets="pagelet_a,pagelet_b" >首页</a>
 	  <a href="/b" data-pagelets="pagelet_a,pagelet_b" >第二页</a>
+	  <a href="/c/998" data-pagelets="pagelet_a,pagelet_b" >第三页</a>
 	
 	  <div id="pagelet_a" style="margin-top:20px;">初始的pagelet_a</div>
 	  <div id="pagelet_b">初始的pagelet_b</div>
@@ -22,9 +23,15 @@
             //return "block"
         })
 
-        pagelet.on('beforeDomReplace', '/a' ,function (url, pagelets, htmlObj, done,  routeParams) {
-            console.log('-----beforeDomReplace', url, pagelets, htmlObj, done,  routeParams)
+        pagelet.on('beforeDomReplace', '/a' ,function (url, htmlObj, done,  routeParams) {
+            console.log('-----beforeDomReplace', url, htmlObj, done,  routeParams)
 
+            return "block"
+        })
+		
+		pagelet.on('beforeload', '/c/:id' ,function (url, pagelets, routeParams) {
+            console.log('-----beforeload', url, pagelets, routeParams)
+            
             //return "block"
         })
         

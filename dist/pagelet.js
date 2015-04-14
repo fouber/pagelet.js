@@ -144,7 +144,9 @@ function pageletRouter (raw) {
     	callbacks[TYPE_ENUM[i]] = {}
     };
 
-    raw.emit = function (type, urlPath) {
+    raw.emit = function (type, url) {
+
+    	var urlPath = url.replace(/(\?.*)/,"")
         var typeRouteMap = callbacks[type]
         
         for(var j in typeRouteMap){
@@ -222,6 +224,26 @@ function __replace_route_to_route_reg(route)
 	
 	return { route_reg : reg_str , route : route , params_count : params_count }
 }
+var LRU_MAP = []
+var _MAX_COUNT = 100
+
+var lru = {
+	set : function(key, val) {
+		if(LRU_MAP.length >= _MAX_COUNT){
+			LRU_MAP.shift()
+		}
+		LRU_MAP.push({ key : key , val : val })
+	},
+	get : function(key){
+		for (var i = LRU_MAP.length - 1; i >= 0; i--) {
+			if(LRU_MAP[i].key == key){
+				return LRU_MAP[i].val
+			}
+		}
+
+		return false
+	}
+}
 /**
  *  Pagelet main module
  */
@@ -229,9 +251,10 @@ function __replace_route_to_route_reg(route)
 var pagelet = global.pagelet = {};
 var loaded = {};
 var combo = false;
+var lruOn = true;
 var comboPattern = DEFAULT_COMBO_PATTERN;
 var supportPushState = global.history && global.history.pushState && global.history.replaceState && !navigator.userAgent.match(/((iPod|iPhone|iPad).+\bOS\s+[1-4]\D|WebApps\/.+CFNetwork)/);
-var _state
+var _state, _pageletQueryObj = {}
 
 pageletRouter(pagelet)
 
@@ -244,6 +267,11 @@ pagelet.init = function(cb, cbp, used){
 		});
 	}
 };
+
+//设置全局pagelet请求追加参数
+pagelet.addQuery = function(queryObj){
+	_pageletQueryObj = queryObj
+}
 
 //初始浏览器的第一个state
 //可以用来兼容后端渲染出来的第一个页面
@@ -284,7 +312,7 @@ pagelet.go = function(url, pagelets, pageletOptions){
 	        };
 	        global.history.replaceState(state, title, url);
 	        
-	        _processHtml(err, data.html, url, pagelets, done)
+	        _processHtml(err, data.html, url, done)
 		})
 		
 		//在发起异步请求开始时就先改变url，pagelet load完成之后再改变_state值
@@ -313,13 +341,31 @@ pagelet.go = function(url, pagelets, pageletOptions){
 }
 
 pagelet.load = function(url, pagelets, pageletOptions, callback){
+
 	if(pagelets && pagelets.length){
 		callback = callback || noop;
 		if(_is(pagelets, 'String')){
 			pagelets = pagelets.split(/\s*,\s*/);
 		}
 		pagelets = pagelets.join(',');
+
+		var nocache = Boolean(pageletOptions.nocache) || false
+		if(lruOn && !nocache){
+			var pageletCache = lru.get(url + "-" + pagelets)
+			if(pageletCache){
+				console.log("cache hit!!")
+				_pageletLoaded(pageletCache, callback)
+				return
+			}
+		}
+		
 		var quickling = url + (url.indexOf('?') === -1 ? '?' : '&') + 'pagelets=' + encodeURIComponent(pagelets);
+
+		for (var key in _pageletQueryObj) {
+			if(url.indexOf(key) === -1){
+				quickling += '&' + key + '=' + encodeURIComponent(_pageletQueryObj[key])
+			}
+		}
 
 		loader.request(quickling, {
             before: function (xhr) {
@@ -328,9 +374,12 @@ pagelet.load = function(url, pagelets, pageletOptions, callback){
         }, function (err, result) {
         	if (err) return callback(err);
 
+        	//设置lru cahce
+        	lruOn && lru.set(url + "-" + pagelets, result)
+
         	_pageletLoaded(result, callback)
         })
-	} 
+	}
 	else {
 		location.href = url;
 	}
@@ -361,7 +410,7 @@ function _pageletLoaded(result, callback){
 			{
 				len--;
 				if(len === 0){
-					callback(error, result, done);
+					callback(error, result, done, {fromCache : fromCache});
 				}
 				error = err;
 			});
@@ -373,7 +422,7 @@ function _pageletLoaded(result, callback){
 }
 
 //默认的pagelet dom替换操作
-function _processHtml(err, htmlObj, url, pagelets, done){
+function _processHtml(err, htmlObj, url, done){
 
 	// Clear out any focused controls before inserting new page contents.
 	try { document.activeElement.blur() } catch (e) { }
@@ -381,7 +430,7 @@ function _processHtml(err, htmlObj, url, pagelets, done){
 	if(err){
 		throw new Error(err);
 	}else{
-		if(pagelet.emit('beforeDomReplace', url, pagelets, htmlObj, done)!="block"){
+		if(pagelet.emit('beforeDomReplace', url, htmlObj, done)!="block"){
 			for(var pageletId in htmlObj){
 				if(htmlObj.hasOwnProperty(pageletId)){
 					var objTemp = document.createElement("div");
@@ -526,7 +575,7 @@ global.addEventListener('popstate', function(e) {
 	var pagelets = state.pagelets
 	if(pagelet.emit('beforeload', url, pagelets)!="block"){
 		pagelet.load(url, pagelets, state.pageletOptions, function(err, data, done){
-			_processHtml(err, data.html, state.url, state.pagelets, done)
+			_processHtml(err, data.html, state.url, done)
 		})
 	}
 	

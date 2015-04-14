@@ -46,6 +46,17 @@ app.get('/b', function (req, res, next) {
         css: []
     })
 })
+app.get('/c/:id', function (req, res, next) {
+    res.send({
+        title: 'c',
+        html: {
+            pagelet_a: '<div id="pagelet_a">我是/c `pagelet_a` 的区域</div>',
+            pagelet_b: '<div id="pagelet_b">我是/c `pagelet_b` 的区域</div>'
+        },
+        js: [],
+        css: []
+    })
+})
 
 /**
  *  server and port

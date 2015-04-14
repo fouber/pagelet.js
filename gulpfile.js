@@ -12,7 +12,7 @@ gulp.task('watch', function () {
 
 gulp.task('default', function() {
     return gulp.src(['wrapper/before.js', 'lib/const.js','lib/utils.js', 'lib/loader.js', 
-                    'lib/loader.js', 'lib/router.js', 'pagelet.js', 'wrapper/after.js'])
+                    'lib/loader.js', 'lib/router.js', 'lib/lru.js' ,'pagelet.js', 'wrapper/after.js'])
         .pipe(concat({path: 'pagelet.js'}))
         .pipe(gulp.dest('dist/'))
         .pipe(gulp.dest('test/'))
